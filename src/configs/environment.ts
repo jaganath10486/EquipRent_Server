@@ -10,6 +10,8 @@ export const {
   IS_REDIS_CACHE_ENABLED,
   REDIS_URL,
   REDIS_TTL,
+  GOOGLE_CLIENT_SECRET,
+  GOOGLE_CLIENT_ID,
 } = process.env;
 
 export const MongoDbAccessConfig: MongoDBConfig = {

@@ -14,3 +14,9 @@ export const EmailRegisterSchema = z
     fullName: z.string().nonempty(),
   })
   .strict();
+
+export const GoogleAuthentication = z
+  .object({
+    code: z.string({ message: "Authentication code is required" }).nonempty(),
+  })
+  .strict();

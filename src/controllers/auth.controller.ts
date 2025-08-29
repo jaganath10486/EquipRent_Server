@@ -36,4 +36,22 @@ export class AuthController {
       next(err);
     }
   };
+  public googleAuthentication = async (
+    req: IRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { code } = req.body;
+      const tokens = await this.authService.googleOauthLogin(code);
+      res.status(201).json({
+        data: tokens,
+        message: "Logged In Successfully",
+      });
+      return;
+    } catch (err) {
+      console.log("err :", err);
+      next(err);
+    }
+  };
 }

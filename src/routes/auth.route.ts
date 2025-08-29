@@ -5,7 +5,9 @@ import { ValidationMiddlware } from "@src/middlewares/validation.middleware";
 import {
   EmailLoginSchema,
   EmailRegisterSchema,
+  GoogleAuthentication,
 } from "@validations/auth.validation";
+import { AuthMiddleware } from "@src/middlewares/auth.middleware";
 
 export class AuthRoutes implements Routes {
   public router: Router = Router();
@@ -20,6 +22,12 @@ export class AuthRoutes implements Routes {
       "/register-email",
       ValidationMiddlware(EmailRegisterSchema),
       authController.registerEmail
+    );
+    this.router.post(
+      "/google-oauth",
+      AuthMiddleware(),
+      ValidationMiddlware(GoogleAuthentication, "body"),
+      authController.googleAuthentication
     );
   };
   constructor() {

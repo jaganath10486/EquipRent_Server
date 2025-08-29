@@ -1,25 +1,31 @@
+import { API_KEY } from "@configs/index";
 import { IRequest } from "@interfaces/request.interface";
-import { UserRole } from "@src/enums/user.enum";
+import { ErrorTypes } from "@src/enums/error.enum";
+import { SignInProvider, UserRole } from "@src/enums/user.enum";
 import HttpExceptionError from "@src/exception/httpexception";
 import { isEmpty } from "@utils/data.util";
 import { veirfyJWTToken } from "@utils/jwt.util";
-import { Response, NextFunction, RequestHandler } from "express";
+import { Response, NextFunction, RequestHandler, Request } from "express";
 
 export const AuthMiddleware = (): RequestHandler => {
-  const endspointsToSkipAuthentication = [
-    "/api/auth/login",
-    "api/auth/register",
-  ];
-  const endpointsForCustomAuth = [""];
-
+  const endspointsToSkipAuthentication = ["/login", "/register"];
+  const endpointsForCustomAuth = ["/google-oauth"];
   return (req: IRequest, res: Response, next: NextFunction) => {
+    req.user = {
+      mobileNumber: 0,
+      emailId: "",
+      userRole: UserRole.PUBLIC,
+      provider: SignInProvider.EMAIL,
+      userName: "",
+      userId: "",
+    };
     try {
-      console.log("req :", req.headers);
+      console.log("path :", req.url, req.path);
       if (endspointsToSkipAuthentication.includes(req.path)) {
-        next();
+        return next();
       }
       if (endpointsForCustomAuth.includes(req.path)) {
-        next();
+        return handleApiKeyValidations(req, res, next);
       }
       return handleBearerTokenValidation(req, next);
       // next(new HttpExceptionError(401, "No Access Token Found"));
@@ -30,7 +36,10 @@ export const AuthMiddleware = (): RequestHandler => {
   };
 };
 
-const handleBearerTokenValidation = async(req: IRequest, next: NextFunction) => {
+const handleBearerTokenValidation = async (
+  req: IRequest,
+  next: NextFunction
+) => {
   try {
     if (!req.headers.authorization) {
       throw new HttpExceptionError(401, "No Authorization header found");
@@ -40,7 +49,7 @@ const handleBearerTokenValidation = async(req: IRequest, next: NextFunction) => 
     if (isEmpty(token)) {
       throw new HttpExceptionError(401, "No Bearer Token Found");
     }
-    const decoded: any = await veirfyJWTToken(token);
+    const decoded: any = veirfyJWTToken(token);
     if (!decoded) {
       throw new HttpExceptionError(401, "Token Expired");
     }
@@ -61,4 +70,26 @@ const getToken = (authHeader: string) => {
   return "";
 };
 
-const handleApiKeyValidations = () => {};
+const handleApiKeyValidations = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  let api_key = req.headers.api_key;
+  if (isEmpty(api_key)) {
+    next(
+      new HttpExceptionError(
+        400,
+        "Api Key is required",
+        ErrorTypes.PAYLOAD_NOT_AVAILABLE
+      )
+    );
+  }
+  if (req.headers.api_key == API_KEY) {
+    next();
+  } else {
+    next(
+      new HttpExceptionError(404, "Invalid Api Key", ErrorTypes.INVALID_PAYLOAD)
+    );
+  }
+};

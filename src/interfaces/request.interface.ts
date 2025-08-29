@@ -6,7 +6,7 @@ export interface IRequest extends Request {
     emailId?: string;
     userRole: UserRole;
     provider: SignInProvider;
-    usserName: string;
+    userName: string;
     userId: string;
   };
 }
