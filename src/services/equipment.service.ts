@@ -16,12 +16,18 @@ import { Types } from "mongoose";
 import { CacheService } from "./cache.service";
 import { RedisKeys } from "@src/enums/redis.enum";
 import { REDIS_TTL } from "@configs/environment";
+import { UserActivityService } from "./user-activity.service";
+import {
+  UserActivity,
+  UserActivityReference,
+} from "@src/enums/user-activity.enum";
 
 class EquipmentService {
   private equipmentModel = EquipmentModel();
   private categoryService = new CategoryService();
   private subCategoryService = new SubCategoryService();
   private cacheService = new CacheService();
+  private userActivityService = new UserActivityService();
   public getEquipments = async (filters: any) => {
     const data = await this.equipmentModel
       .find({ ...filters })
@@ -36,7 +42,7 @@ class EquipmentService {
     return transformedResponse;
   };
 
-  public getEquipmentById = async (id: string) => {
+  public getEquipmentById = async (id: string, userId: string) => {
     if (isEmpty(id) || !isValidObjectId(id)) {
       throw new HttpExceptionError(400, "Not valid Id");
     }
@@ -47,7 +53,7 @@ class EquipmentService {
     if (!isEmpty(cachedData)) {
       return cachedData;
     }
-    const data = await this.equipmentModel
+    let data: any = await this.equipmentModel
       .findById(new ObjectId(id))
       .populate([
         ...userPopulateQuery,
@@ -58,13 +64,34 @@ class EquipmentService {
     if (!data) {
       throw new HttpExceptionError(204, "No Equipment Found");
     }
-    const equipmentData = new EquipmentClass(data);
-    await this.cacheService.setJson(
-      RedisKeys.EquipmentDetails,
-      equipmentData,
-      id, 
-      Number(REDIS_TTL)
-    );
+    data = [data];
+    const sourceIds = data.map((item: any) => item._id);
+    let activityMap: Record<string, Record<string, boolean>> = {};
+    if (userId) {
+      const userActivities =
+        await this.userActivityService.getUserActivityBySource(
+          new Types.ObjectId(userId),
+          sourceIds,
+          UserActivityReference.EQUIPMENT,
+          [UserActivity.LIKE]
+        );
+      activityMap = userActivities.reduce((acc, curr) => {
+        if (!acc[curr.sourceId]) acc[curr.sourceId] = {};
+        acc[curr.sourceId][curr.action] = true;
+        return acc;
+      }, {} as Record<string, Record<string, boolean>>);
+    }
+    const finalResult: any[] = data.map((content: any) => ({
+      ...content,
+      isLiked: activityMap[content._id]?.like || false,
+    }));
+    const equipmentData = new EquipmentClass(finalResult[0]);
+    // await this.cacheService.setJson(
+    //   RedisKeys.EquipmentDetails,
+    //   equipmentData,
+    //   id,
+    //   Number(REDIS_TTL)
+    // );
     return equipmentData;
   };
 
@@ -117,7 +144,7 @@ class EquipmentService {
       .lean()
       .exec();
     const transformedEquipData = new EquipmentClass(equipData);
-    this.cacheService.delete(RedisKeys.EquipmentDetails, id)
+    this.cacheService.delete(RedisKeys.EquipmentDetails, id);
     return transformedEquipData;
   };
 
@@ -128,6 +155,16 @@ class EquipmentService {
     if (payload && Object.values(payload).length > 0) {
       if (payload.isFeatured != undefined) {
         filters["isFeatured"] = payload.isFeatured;
+      }
+      if (payload.category != undefined) {
+        filters["categoryId"] = payload.category;
+      }
+      if (
+        payload.subCategories != undefined &&
+        payload.subCategories &&
+        payload.subCategories.length > 0
+      ) {
+        filters["subCategoryId"] = { $in: [...payload.subCategories] };
       }
     }
     const data = await this.equipmentModel

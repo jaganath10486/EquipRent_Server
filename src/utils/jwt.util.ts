@@ -7,7 +7,6 @@ export const signJWTToken = (
   payload: Record<string, any>,
   expiryInSec: number
 ) => {
-  console.log("secrete_key :", secrete_key);
   const expirationInSeconds = !isNaN(expiryInSec) ? expiryInSec : 1 * 60 * 60;
   payload = {
     ...payload,

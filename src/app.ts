@@ -55,7 +55,7 @@ class App {
       windowMs: 15 * 60 * 1000,
       max: 100,
     });
-    this.app.use(limiter);
+    // this.app.use(limiter);
   }
   public initiallizeServer() {
     this.server = this.app.listen(PORT, () => {

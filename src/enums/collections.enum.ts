@@ -2,6 +2,8 @@ export enum Collections {
   USER = "users",
   EQUIPMENT = "equipments",
   CATGORY = "categories",
-  SUBCATEGORY = "subCategories",
+  SUBCATEGORY = "subcategories",
   EQUIPMENTBOOKINGS = "equipmentBookings",
+  USERACTIVITY = 'useractivity',
+  USERACTIVITYCOUNT = 'useractivitycount'
 }

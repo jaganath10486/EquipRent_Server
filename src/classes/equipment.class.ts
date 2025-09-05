@@ -17,6 +17,9 @@ export class EquipmentClass {
   tags?: string[];
   depoists?: Object;
   prices?: object;
+  userActivity?: {
+    isLiked?: boolean;
+  };
   constructor(data: any) {
     this.id = assignorDefaultValue(data._id, "");
     // this.user = new UserIdClass(data?.userId);
@@ -35,6 +38,9 @@ export class EquipmentClass {
     if (data.prices) {
       this.prices = data.prices;
     }
+    this.userActivity = {
+      isLiked: assignorDefaultValue(data?.isLiked, false),
+    };
     if (!isEmpty(data?.specifications || {})) {
       this.specifications = data.specifications;
     }

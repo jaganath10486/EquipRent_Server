@@ -47,7 +47,6 @@ export class TokenService {
       throw new HttpExceptionError(401, "Refrssh token is empty");
     }
     const data: TokenInterface = await veirfyJWTToken(refreshToken);
-    console.log("data :", data);
     if (!data.userId) {
       throw new HttpExceptionError(400, "No User Id is found");
     }

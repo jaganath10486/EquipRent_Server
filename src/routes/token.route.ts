@@ -12,7 +12,7 @@ export class TokenRoutes implements Routes {
   initiallizeRoutes = () => {
     const tokenController = new TokenController();
     this.router.post(
-      "/refresh-token",
+      "/refresh_token",
       ValidationMiddlware(RefreshTokenSchema, "body"),
       tokenController.refreshAccessToken
     );

@@ -10,9 +10,9 @@ export class CategoryRoutes implements Routes {
   }
   public initiallizeRoutes = () => {
     const categoryController = new CategoryController();
+    this.router.get(`${this.baseUrl}`, categoryController.getAllCategories);
     this.router.get(`${this.baseUrl}/:id`, categoryController.getCategoryById);
     this.router.put(`${this.baseUrl}/:id`, categoryController.updateCategory);
-    this.router.get(`${this.baseUrl}`, categoryController.getAllCategories);
     this.router.post(`${this.baseUrl}`, categoryController.createCategory);
   };
 }

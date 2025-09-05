@@ -15,6 +15,7 @@ import { UserService } from "./user.service";
 import { EquipmentService } from "./equipment.service";
 import { EquipmentModel } from "@src/models/equipment.model";
 import { Types } from "mongoose";
+import { Collections } from "@src/enums/collections.enum";
 
 export class EquipmentBookingService {
   private equipmentModel = EquipmentModel();
@@ -58,6 +59,7 @@ export class EquipmentBookingService {
 
     let totalRentalAmount = 0;
     let totalDepositAmount = 0;
+    let totalAmountPaid = 0;
     const finalItems = [];
 
     for (const item of items) {
@@ -112,7 +114,7 @@ export class EquipmentBookingService {
     }
 
     const isDepositPaid = totalDepositAmount > 0;
-
+    totalAmountPaid = totalDepositAmount + totalRentalAmount;
     const bookingData = {
       userId: userObjectId,
       items: finalItems,
@@ -123,6 +125,7 @@ export class EquipmentBookingService {
       deliveryType: DeliveryType.PICKUP,
       paymentMode: PaymentMode.CASH,
       isPaid: false,
+      totalAmountPaid: totalAmountPaid,
     };
 
     const booking = await this.equipmentBookingModel.create(bookingData);
@@ -151,6 +154,48 @@ export class EquipmentBookingService {
       .aggregate([
         {
           $match: { userId: new Types.ObjectId(userId) },
+        },
+        {
+          $lookup: {
+            from: Collections.EQUIPMENT, // collection name of equipments
+            localField: "items.equipmentId", // the field inside items array
+            foreignField: "_id", // the _id field in equipments
+            as: "equipmentDetails", // output array field
+          },
+        },
+        {
+          $addFields: {
+            items: {
+              $map: {
+                input: "$items",
+                as: "item",
+                in: {
+                  $mergeObjects: [
+                    "$$item",
+                    {
+                      details: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$equipmentDetails",
+                              as: "ed",
+                              cond: { $eq: ["$$ed._id", "$$item.equipmentId"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            equipmentDetails: 0, // remove temp field
+          },
         },
       ])
       .exec();

@@ -50,7 +50,6 @@ export class AuthController {
       });
       return;
     } catch (err) {
-      console.log("err :", err);
       next(err);
     }
   };

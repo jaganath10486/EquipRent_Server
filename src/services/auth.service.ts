@@ -78,7 +78,6 @@ export class AuthService {
       idToken: tokenId || "",
     });
 
-    console.log("verify :", verify);
 
     const { email_verified, email, name, picture } = verify.payload;
     let userData = await this.findUserOrCreateUser(

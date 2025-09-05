@@ -20,7 +20,6 @@ export const AuthMiddleware = (): RequestHandler => {
       userId: "",
     };
     try {
-      console.log("path :", req.url, req.path);
       if (endspointsToSkipAuthentication.includes(req.path)) {
         return next();
       }
@@ -53,11 +52,9 @@ const handleBearerTokenValidation = async (
     if (!decoded) {
       throw new HttpExceptionError(401, "Token Expired");
     }
-    console.log("decoded :", decoded);
     req.user = { ...decoded };
     return next();
   } catch (err) {
-    console.log("error :", err);
     return next(err);
   }
 };

@@ -7,6 +7,8 @@ import { StatusCodes } from "http-status-codes";
 import { ObjectId } from "mongodb";
 import { CacheService } from "./cache.service";
 import { RedisKeys } from "@src/enums/redis.enum";
+import { Types } from "mongoose";
+import { Collections } from "@src/enums/collections.enum";
 
 class CategoryService {
   private categoryModel = CategoryModel();
@@ -58,26 +60,57 @@ class CategoryService {
         "Category Id is not valid"
       );
     }
-    const category = await this.categoryModel.findById(new ObjectId(id));
-    if (!category) {
+    let query = [
+      {
+        $match: {
+          _id: new Types.ObjectId(id),
+        },
+      },
+      {
+        $lookup: {
+          from: Collections.SUBCATEGORY,
+          localField: "_id",
+          foreignField: "categoryId",
+          as: "subCategories",
+        },
+      },
+    ];
+    const category = await this.categoryModel.aggregate(query);
+    if (!category || category.length == 0) {
       throw new HttpExceptionError(
         StatusCodes.NO_CONTENT,
         "No category found with the given category Id"
       );
     }
-    return category;
+    return category[0];
   }
   public async getCategories(filter: Record<string, any>) {
-    const cachedData = await this.cacheService.getJson(RedisKeys.CATEGORIES);
-    console.log("cached data :", cachedData);
-    if (!isEmpty(cachedData)) {
-      return cachedData;
-    }
-    const categories = await this.categoryModel
-      .find({ ...filter })
-      .lean()
-      .exec();
-    await this.cacheService.setJson(RedisKeys.CATEGORIES, categories);
+    const cachedData = await this.cacheService.getJson(RedisKeys.CATEGORIES, JSON.stringify(filter));
+    // if (!isEmpty(cachedData)) {
+    //   return cachedData;
+    // }
+    let query = [
+      {
+        $match: {
+          ...filter,
+        },
+      },
+      // {
+      //   $lookup: {
+      //     from: Collections.SUBCATEGORY,
+      //     localField: "_id",
+      //     foreignField: "categoryId",
+      //     as: "subCategories",
+      //   },
+      // },
+      {
+        $project: {
+          __v: 0,
+        },
+      },
+    ];
+    const categories = await this.categoryModel.aggregate(query);
+    await this.cacheService.setJson(RedisKeys.CATEGORIES, categories, JSON.stringify(filter));
     return categories;
   }
 }

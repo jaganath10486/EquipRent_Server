@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { SubCategoryController } from "@src/controllers/sub-category.controller";
 import { Routes } from "@interfaces/request.interface";
+import { ValidationMiddlware } from "@src/middlewares/validation.middleware";
+import { CreateSubCategoryValidation } from "@validations/sub-category.validation";
 
 export class SubCategoryRoutes implements Routes {
   public baseUrl = "/sub-category";
@@ -16,6 +18,7 @@ export class SubCategoryRoutes implements Routes {
     );
     this.router.post(
       `${this.baseUrl}`,
+      ValidationMiddlware(CreateSubCategoryValidation, 'body'),
       subCategoryController.createSubCategory
     );
   };

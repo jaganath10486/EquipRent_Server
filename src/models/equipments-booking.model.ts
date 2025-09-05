@@ -95,7 +95,10 @@ const EquipmentBookingSchema = new Schema(
       required: false,
       default: 0,
     },
-
+    totalAmountPaid: {
+      type: SchemaTypes.Number,
+      required : true,
+    },
     isDepositPaid: {
       type: SchemaTypes.Boolean,
       default: false,
