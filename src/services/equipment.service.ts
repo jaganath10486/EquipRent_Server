@@ -86,12 +86,6 @@ class EquipmentService {
       isLiked: activityMap[content._id]?.like || false,
     }));
     const equipmentData = new EquipmentClass(finalResult[0]);
-    // await this.cacheService.setJson(
-    //   RedisKeys.EquipmentDetails,
-    //   equipmentData,
-    //   id,
-    //   Number(REDIS_TTL)
-    // );
     return equipmentData;
   };
 

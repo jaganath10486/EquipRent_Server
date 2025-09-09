@@ -2,8 +2,9 @@ import { Router } from "express";
 import { UserActivityController } from "@src/controllers/user-activity.controller";
 import { ValidationMiddlware } from "@src/middlewares/validation.middleware";
 import { Routes } from "@interfaces/request.interface";
-import { AuthMiddleware } from "@src/middlewares/auth.middleware";
 import { UserActivityValidation } from "@validations/user-activity.validation";
+import { Authorize } from "@src/middlewares/authorize.middleware";
+import { UserRole } from "@src/enums/user.enum";
 
 export class UserActivityRoutes implements Routes {
   public router: Router = Router();
@@ -14,7 +15,7 @@ export class UserActivityRoutes implements Routes {
     const userActivityController = new UserActivityController();
     this.router.post(
       "/perform",
-    //   AuthMiddleware(),
+      Authorize(UserRole.USER),
       ValidationMiddlware(UserActivityValidation, "body"),
       userActivityController.performAction
     );

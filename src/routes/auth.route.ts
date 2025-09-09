@@ -7,7 +7,8 @@ import {
   EmailRegisterSchema,
   GoogleAuthentication,
 } from "@validations/auth.validation";
-import { AuthMiddleware } from "@src/middlewares/auth.middleware";
+import { Authorize } from "@src/middlewares/authorize.middleware";
+import { UserRole } from "@src/enums/user.enum";
 
 export class AuthRoutes implements Routes {
   public router: Router = Router();
@@ -25,7 +26,7 @@ export class AuthRoutes implements Routes {
     );
     this.router.post(
       "/google-oauth",
-      AuthMiddleware(),
+      Authorize(UserRole.PUBLIC),
       ValidationMiddlware(GoogleAuthentication, "body"),
       authController.googleAuthentication
     );

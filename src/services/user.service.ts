@@ -46,7 +46,7 @@ export class UserService {
     }
     let userData = payload;
     if (!payload.userRole) {
-      userData.userRole = UserRole.PUBLIC;
+      userData.userRole = UserRole.USER;
     }
     const user = await this.userModel.create({ ...payload });
     return user;

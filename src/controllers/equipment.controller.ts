@@ -43,7 +43,7 @@ export class EquipmentController {
   ) => {
     try {
       const id = req.params.id.toString();
-      const userId: any = req.query.userId || "";
+      const userId: any = req.user?.userId || "";
       const data = await this.equipmentService.getEquipmentById(id, userId);
       if (!data) {
         throw new HttpExceptionError(204, "No equipment data fount");

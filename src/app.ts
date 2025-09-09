@@ -12,6 +12,7 @@ import MongoDB from "./databse";
 import router from "./routes";
 import { ErrorMiddleware } from "./middlewares/error.middleware";
 import { ResponseModifier } from "./middlewares/responseModifier.middleware";
+import { AuthMiddleware } from "./middlewares/auth.middleware";
 
 class App {
   private server: unknown;
@@ -19,9 +20,9 @@ class App {
   constructor() {
     this.app = express();
     this.connectToDB();
-    this.initiallizeMiddleware();
     this.initiallizeRateLimiter();
     this.initiallizeResponseModifierMiddleware();
+    this.initiallizeMiddleware();
     this.initiallizeRoutes(router);
     this.initiallizeErrorMiddleware();
   }
@@ -34,6 +35,7 @@ class App {
     this.app.use(express.urlencoded({ extended: true }));
     this.app.use(hpp());
     this.app.use(compression());
+    this.app.use(AuthMiddleware())
   }
   public async connectToDB() {
     try {

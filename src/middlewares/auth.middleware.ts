@@ -8,8 +8,11 @@ import { veirfyJWTToken } from "@utils/jwt.util";
 import { Response, NextFunction, RequestHandler, Request } from "express";
 
 export const AuthMiddleware = (): RequestHandler => {
-  const endspointsToSkipAuthentication = ["/login", "/register"];
-  const endpointsForCustomAuth = ["/google-oauth"];
+  const endspointsToSkipAuthentication = [
+    "/api/auth/login",
+    "/api/auth/register",
+  ];
+  const endpointsForCustomAuth = ["/api/auth/google-oauth"];
   return (req: IRequest, res: Response, next: NextFunction) => {
     req.user = {
       mobileNumber: 0,
@@ -26,8 +29,10 @@ export const AuthMiddleware = (): RequestHandler => {
       if (endpointsForCustomAuth.includes(req.path)) {
         return handleApiKeyValidations(req, res, next);
       }
+      if (!req.headers.authorization) {
+        return next();
+      }
       return handleBearerTokenValidation(req, next);
-      // next(new HttpExceptionError(401, "No Access Token Found"));
     } catch (err) {
       console.log("error in middleware :", err);
       next(err);
