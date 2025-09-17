@@ -59,7 +59,6 @@ export class AuthService {
       fullName: payoad.fullName,
       password: hashedPassword,
       isActive: true,
-      userRole: UserRole.PUBLIC,
       provider: SignInProvider.EMAIL,
     };
     const userData = await this.userService.createUser(data);
@@ -102,7 +101,6 @@ export class AuthService {
         emailId: emailId,
         fullName: name,
         isActive: true,
-        userRole: UserRole.PUBLIC,
         provider: provider,
       };
       const userData = await this.userService.createUser(data);

@@ -46,7 +46,6 @@ class App {
         .catch(() => {
           console.error("Error in conntecting to mongo db");
         });
-      const mongodb = await MongoDB.connect();
       // mongodb.
     } catch (err) {
       console.log("err :", err);

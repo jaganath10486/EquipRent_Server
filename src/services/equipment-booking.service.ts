@@ -16,6 +16,7 @@ import { EquipmentService } from "./equipment.service";
 import { EquipmentModel } from "@src/models/equipment.model";
 import { Types } from "mongoose";
 import { Collections } from "@src/enums/collections.enum";
+import { emailQueueService } from "./email-queue.service";
 
 export class EquipmentBookingService {
   private equipmentModel = EquipmentModel();
@@ -38,7 +39,7 @@ export class EquipmentBookingService {
         "At least one equipment item is required."
       );
 
-    const userData = await this.userService.isUserExists({ _id: userObjectId });
+    const userData = await this.userService.getUserById(userId);
     if (!userData)
       throw new HttpExceptionError(404, "No user found with given Id");
 
@@ -129,6 +130,14 @@ export class EquipmentBookingService {
     };
 
     const booking = await this.equipmentBookingModel.create(bookingData);
+    const emailId = userData.emailId;
+    if (emailId) {
+      await emailQueueService.sendEmail({
+        to: [emailId],
+        subject: "Successfully booked Equipment",
+        html: "Successfully booked an equipment",
+      });
+    }
     return booking;
   };
 

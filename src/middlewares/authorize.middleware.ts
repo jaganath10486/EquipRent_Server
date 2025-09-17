@@ -18,7 +18,6 @@ export const Authorize = (
       const userRole = req.user.userRole;
       const userRoleLevel = ROLE_HIERARCHY[userRole] || 0;
       const requiredRoleLevel = ROLE_HIERARCHY[minUserRole] || 0;
-
       const hasRequiredRole = userRoleLevel >= requiredRoleLevel;
       if (hasRequiredRole) {
         return next();
