@@ -50,7 +50,7 @@ class EmailQueueService {
         "send:email",
         data,
         {
-          delay: 0,
+          delay: 100,
           priority: 0,
         }
       );
