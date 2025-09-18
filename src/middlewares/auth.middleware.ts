@@ -34,7 +34,6 @@ export const AuthMiddleware = (): RequestHandler => {
       }
       return handleBearerTokenValidation(req, next);
     } catch (err) {
-      console.log("error in middleware :", err);
       next(err);
     }
   };

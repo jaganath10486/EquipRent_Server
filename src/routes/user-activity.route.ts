@@ -19,5 +19,10 @@ export class UserActivityRoutes implements Routes {
       ValidationMiddlware(UserActivityValidation, "body"),
       userActivityController.performAction
     );
+    this.router.get(
+      "/count",
+      Authorize(UserRole.USER),
+      userActivityController.getUserActivityCount
+    );
   };
 }

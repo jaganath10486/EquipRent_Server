@@ -1,13 +1,32 @@
 import { IRequest, IResult } from "@interfaces/request.interface";
+import { CacheService } from "@src/services/cache.service";
 import { isEmpty } from "@utils/data.util";
 import { NextFunction, Response } from "express";
 
-export const ResponseModifier = (req: Request, res: any, next: any) => {
+const cacheService = new CacheService();
+
+export const ResponseModifier = (req: IRequest, res: any, next: any) => {
   try {
-    const originalJson = res.json;
-    res.json = function (body: any) {
+    const originalJson = res.json.bind(res);
+    const originalStatus = res.status.bind(res);
+    let statusCode = 200;
+
+    res.status = function (code: number) {
+      statusCode = code;
+      return originalStatus(code);
+    };
+
+    res.json = async function (body: any) {
+      const shouldCache = statusCode >= 200 && statusCode < 300;
+      if (shouldCache && req.idempotencyKey) {
+        const userId = req?.user?.userId || "public";
+        const fullPath = req.originalUrl.split("?")[0];
+        const endpoint = `${req.method}:${fullPath}`;
+        const cachedHashKey = `${userId}:${endpoint}:${req.idempotencyKey}`;
+        await cacheService.setJson("idempotency", body, cachedHashKey);
+      }
       if (body?.skipResponseModifier) {
-        originalJson.call(this, body);
+        originalJson(body);
       } else {
         const response: Partial<IResult> = {};
         if (res.isError) {
@@ -33,7 +52,7 @@ export const ResponseModifier = (req: Request, res: any, next: any) => {
           }
           response.message = body.message || "Successfully executed";
         }
-        originalJson.call(this, response);
+        originalJson(response);
       }
     };
     next();

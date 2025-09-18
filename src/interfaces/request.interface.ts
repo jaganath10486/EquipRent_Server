@@ -9,6 +9,7 @@ export interface IRequest extends Request {
     userName: string;
     userId: string;
   };
+  idempotencyKey?: string;
 }
 
 export interface IResult {

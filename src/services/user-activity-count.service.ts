@@ -1,3 +1,4 @@
+import { UserActivityCountClass } from "@src/classes/user-activity.class";
 import { UserActivity } from "@src/enums/user-activity.enum";
 import HttpExceptionError from "@src/exception/httpexception";
 import { UserActivityCountModel } from "@src/models/user-activity-count.model";
@@ -32,4 +33,22 @@ export class UserActivityCountService {
       );
     }
   }
+
+  getUserActivityCount = async (userId: any) => {
+    if (!isValidObjectId(userId)) {
+      throw new HttpExceptionError(400, "Not valid user Id");
+    }
+
+    const data = await this.userActivityCountModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+        },
+      },
+    ]);
+    if (data && data.length > 0) {
+      return new UserActivityCountClass(data[0]);
+    }
+    return new UserActivityCountClass({ totalLikes: 0, userId: userId });
+  };
 }

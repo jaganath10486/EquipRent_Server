@@ -63,7 +63,6 @@ export class EmailService {
       });
 
       if (error) {
-        console.log("error in sending email :", error);
         throw new HttpExceptionError(500, "Failed to send the email.");
       }
       return data;
@@ -77,10 +76,8 @@ export class EmailService {
           html: html,
         });
 
-        console.log("Message sent: %s", email);
         return email;
       } catch (err) {
-        console.log("error :", err);
         throw err;
       }
     } else {

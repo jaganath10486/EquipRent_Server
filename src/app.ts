@@ -13,6 +13,7 @@ import router from "./routes";
 import { ErrorMiddleware } from "./middlewares/error.middleware";
 import { ResponseModifier } from "./middlewares/responseModifier.middleware";
 import { AuthMiddleware } from "./middlewares/auth.middleware";
+import { IdempotencyMiddleware } from "./middlewares/idempotency.middleware";
 
 class App {
   private server: unknown;
@@ -27,7 +28,7 @@ class App {
     this.initiallizeErrorMiddleware();
   }
   public initiallizeMiddleware() {
-    this.app.use(morgan("combined"));
+    // this.app.use(morgan("combined"));
     this.app.use(helmet());
     this.app.use(cors({ origin: true }));
     this.app.use(express.json());
@@ -35,7 +36,8 @@ class App {
     this.app.use(express.urlencoded({ extended: true }));
     this.app.use(hpp());
     this.app.use(compression());
-    this.app.use(AuthMiddleware())
+    this.app.use(AuthMiddleware());
+    this.app.use(IdempotencyMiddleware());
   }
   public async connectToDB() {
     try {

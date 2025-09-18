@@ -20,7 +20,6 @@ class EmailQueueService {
     );
   }
   proccessJob = async (job: Job) => {
-    // console.log("job :", job);
     console.log("job data :", job.data);
     try {
       const { from, to, subject, html, text } = job.data;
