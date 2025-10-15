@@ -23,7 +23,7 @@ export class BullMQService {
     if (!this.connection) {
       this.connection = new Redis({
         host: REDIS_HOST,
-        port: 13250,
+        port: Number(REDIS_PORT),
         password: REDIS_PASSWORD,
         maxRetriesPerRequest: null,
         connectTimeout: 6000,

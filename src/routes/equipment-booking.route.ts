@@ -25,5 +25,6 @@ export class EquipmentBookingRoutes implements Routes {
       Authorize(UserRole.USER),
       equipmentBookingController.getAllUserBookings
     );
+    this.router.get("/remainder", equipmentBookingController.getAllRemainders);
   };
 }

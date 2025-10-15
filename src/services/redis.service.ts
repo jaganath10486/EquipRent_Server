@@ -1,6 +1,13 @@
 import { createClient, RedisClientType } from "redis";
 import { toBoolean } from "@utils/data.util";
-import { IS_REDIS_CACHE_ENABLED, REDIS_URL } from "@configs/environment";
+import {
+  IS_REDIS_CACHE_ENABLED,
+  REDIS_URL,
+  REDIS_USERNAME,
+  REDIS_PASSWORD,
+  REDIS_HOST,
+  REDIS_PORT,
+} from "@configs/environment";
 
 export class RedisService {
   private static instance: RedisService;
@@ -19,7 +26,14 @@ export class RedisService {
 
   private initiallizeRedisCaching() {
     if (toBoolean(IS_REDIS_CACHE_ENABLED) && !this.client) {
-      this.client = createClient({ url: REDIS_URL });
+      this.client = createClient({
+        username: REDIS_USERNAME,
+        password: REDIS_PASSWORD,
+        socket: {
+          host: REDIS_HOST,
+          port: Number(REDIS_PORT),
+        },
+      });
       this.client
         .connect()
         .then(() => {

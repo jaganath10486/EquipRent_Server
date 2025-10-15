@@ -166,7 +166,7 @@ export class EquipmentBookingService {
         },
         {
           $lookup: {
-            from: Collections.EQUIPMENT, // collection name of equipments
+            from: Collections.EQUIPMENT, 
             localField: "items.equipmentId", // the field inside items array
             foreignField: "_id", // the _id field in equipments
             as: "equipmentDetails", // output array field
@@ -209,5 +209,39 @@ export class EquipmentBookingService {
       ])
       .exec();
     return equipmentsBookings;
+  };
+
+  public getBookingsAboutToExpiry = async (daysThreshold: number) => {
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() + daysThreshold);
+    const res = await this.equipmentBookingModel.aggregate([
+      {
+        $match: {
+          isReturned: false,
+          items: {
+            $elemMatch: {
+              endDate: { $lt: thresholdDate },
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: Collections.USER, 
+          localField: "userId", 
+          foreignField: "_id",
+          as: "userInfo",
+          pipeline: [
+            {
+              $project: {
+                _id: 0, 
+                emailId: 1, 
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    return res;
   };
 }

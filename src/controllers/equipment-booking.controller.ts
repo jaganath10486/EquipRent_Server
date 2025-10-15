@@ -45,4 +45,22 @@ export class EquipmentBookingController {
       next(err);
     }
   };
+  public getAllRemainders = async (
+    req: IRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const userId = req.user?.userId || "";
+      const userBookings =
+        await this.equipmentBookingService.getBookingsAboutToExpiry(2);
+      res.status(200).json({
+        data: userBookings,
+        message: "Fetched user booking Successfully",
+      });
+      return;
+    } catch (err) {
+      next(err);
+    }
+  };
 }
