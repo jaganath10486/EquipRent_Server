@@ -1,8 +1,8 @@
 export enum UserActivityReference {
-  EQUIPMENT = "equipment",  
+  EQUIPMENT = "equipment",
 }
 
-
-export enum UserActivity{
-    LIKE = 'like'
+export enum UserActivity {
+  LIKE = "like",
+  VIEW = "view",
 }

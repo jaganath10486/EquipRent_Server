@@ -70,26 +70,33 @@ export class UserActivityService {
   ): Promise<any> => {
     const existingUserActivity = await this.getExistingActivity(data);
     if (existingUserActivity && existingUserActivity.length > 0) {
-      if (existingUserActivity[0].isActionTrue && data.isPositive === 1) {
-        throw new HttpExceptionError(400, "User already performed the action");
-      }
+      if ([UserActivity.LIKE].includes(data.action)) {
+        if (existingUserActivity[0].isActionTrue && data.isPositive === 1) {
+          throw new HttpExceptionError(
+            400,
+            "User already performed the action"
+          );
+        }
 
-      if (!existingUserActivity[0].isActionTrue && data.isPositive === 0) {
-        throw new HttpExceptionError(
-          400,
-          "User Does not perform any action earlier"
-        );
+        if (!existingUserActivity[0].isActionTrue && data.isPositive === 0) {
+          throw new HttpExceptionError(
+            400,
+            "User Does not perform any action earlier"
+          );
+        }
       }
       const temp = await this.userActivityModel.findByIdAndUpdate(
         new Types.ObjectId(existingUserActivity[0]._id),
         { $set: { isPositive: data.isPositive } },
         { new: true, runValidators: true }
       );
-      await this.userActivityCountService.updateUserAcitivityCount(
-        data.isPositive,
-        data.userId,
-        data.action
-      );
+      if ([UserActivity.LIKE].includes(data.action)) {
+        await this.userActivityCountService.updateUserAcitivityCount(
+          data.isPositive,
+          data.userId,
+          data.action
+        );
+      }
       return temp;
     } else {
       if (data.isPositive == 0) {
@@ -99,11 +106,13 @@ export class UserActivityService {
         );
       }
       let temp = await this.userActivityModel.create({ ...data });
-      await this.userActivityCountService.updateUserAcitivityCount(
-        data.isPositive,
-        data.userId,
-        data.action
-      );
+      if ([UserActivity.LIKE].includes(data.action)) {
+        await this.userActivityCountService.updateUserAcitivityCount(
+          data.isPositive,
+          data.userId,
+          data.action
+        );
+      }
       return temp;
     }
   };

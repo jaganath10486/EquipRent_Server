@@ -26,6 +26,11 @@ export class EquimentRoutes implements Routes {
       ValidationMiddlware(EquipmentFilterSchema, "body"),
       equipmentController.filterEquipments
     );
+    this.router.post(
+      `${this.baseUrl}/recommendations`,
+      Authorize(UserRole.PUBLIC),
+      equipmentController.recommendEquipments
+    );
     this.router.get(
       `${this.baseUrl}/:id`,
       Authorize(UserRole.PUBLIC),

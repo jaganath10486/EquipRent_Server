@@ -71,4 +71,26 @@ export class EquipmentController {
       next(err);
     }
   };
+  public recommendEquipments = async (
+    req: IRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const userId = req.user?.userId || "";
+      let data: any[] = [];
+      if (userId) {
+        data = await this.equipmentService.getRecommendedEquipments(userId);
+      } else {
+        data = [];
+      }
+      res.status(200).json({
+        data: data,
+        message: "Fetched the recommendations equipmenyts",
+      });
+      return;
+    } catch (err) {
+      next(err);
+    }
+  };
 }

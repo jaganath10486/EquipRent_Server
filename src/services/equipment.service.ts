@@ -21,6 +21,8 @@ import {
   UserActivity,
   UserActivityReference,
 } from "@src/enums/user-activity.enum";
+import { UserActivityModel } from "@src/models/user-activity.model";
+import { EquipmentBookingModel } from "@src/models/equipments-booking.model";
 
 class EquipmentService {
   private equipmentModel = EquipmentModel();
@@ -28,6 +30,9 @@ class EquipmentService {
   private subCategoryService = new SubCategoryService();
   private cacheService = new CacheService();
   private userActivityService = new UserActivityService();
+  private userActivityModel = UserActivityModel();
+  private equipmentBookingModel = EquipmentBookingModel();
+
   public getEquipments = async (filters: any) => {
     const data = await this.equipmentModel
       .find({ ...filters })
@@ -179,6 +184,111 @@ class EquipmentService {
   public isEquipmentExists = async (filters: Record<string, any>) => {
     const isEquipmentExists = await this.equipmentModel.exists({ ...filters });
     return isEquipmentExists;
+  };
+
+  public getRecommendedEquipments = async (userId: string) => {
+    const { likedIds, viewedIds, bookedEquipmentIds } =
+      await this.getUserInterestIds(userId);
+    const { categoryIds, subCategoryIds } =
+      await this.getUserInterestCategories({
+        likedIds,
+        viewedIds,
+        bookedEquipmentIds,
+      });
+
+    const sameSubCategory = await this.equipmentModel
+      .find({
+        subCategoryId: { $in: subCategoryIds },
+        _id: { $nin: bookedEquipmentIds }, // exclude already booked
+      })
+      .populate([
+        ...userPopulateQuery,
+        ...CategoryPopulate,
+        ...SubCategoryPopulate,
+      ])
+      .limit(10)
+      .lean()
+      .exec();
+
+    const sameCategory = await this.equipmentModel
+      .find({
+        categoryId: { $in: categoryIds },
+        subCategoryId: { $nin: subCategoryIds }, // avoid duplicates
+        _id: { $nin: bookedEquipmentIds },
+      })
+      .populate([
+        ...userPopulateQuery,
+        ...CategoryPopulate,
+        ...SubCategoryPopulate,
+      ])
+      .limit(5)
+      .lean()
+      .exec();
+
+    const recommended = [...sameSubCategory, ...sameCategory].slice(0, 15);
+    const transformedResponse = recommended.map(
+      (item) => new EquipmentClass(item)
+    );
+    return transformedResponse;
+  };
+  public getUserInterestIds = async (userId: string) => {
+    const objectId = new Types.ObjectId(userId);
+
+    // get all equipment user liked or viewed
+    const userActivities = await this.userActivityModel
+      .find({
+        userId: objectId,
+        reference: UserActivityReference.EQUIPMENT,
+        isPositive: 1,
+        action: { $in: [UserActivity.LIKE, UserActivity.VIEW] },
+      })
+      .lean();
+
+    // get all booked equipments by the user
+    const userBookings = await this.equipmentBookingModel.aggregate([
+      { $match: { userId: objectId } },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: null,
+          bookedEquipmentIds: { $addToSet: "$items.equipmentId" },
+        },
+      },
+    ]);
+
+    const bookedEquipmentIds = userBookings?.[0]?.bookedEquipmentIds || [];
+
+    const likedIds = userActivities
+      .filter((a) => a.action === UserActivity.LIKE)
+      .map((a) => a.sourceId);
+    const viewedIds = userActivities
+      .filter((a) => a.action === UserActivity.VIEW)
+      .map((a) => a.sourceId);
+
+    return { likedIds, viewedIds, bookedEquipmentIds };
+  };
+
+  public getUserInterestCategories = async ({
+    likedIds,
+    viewedIds,
+    bookedEquipmentIds,
+  }: any) => {
+    const allInterestIds = [...likedIds, ...viewedIds, ...bookedEquipmentIds];
+
+    const equipments = await this.equipmentModel
+      .find({
+        _id: { $in: allInterestIds },
+      })
+      .select("categoryId subCategoryId");
+
+    const categoryIds = [
+      ...new Set(equipments.map((e) => e.categoryId.toString())),
+    ];
+    const subCategoryIds = [
+      ...new Set(equipments.map((e) => e.subCategoryId.toString())),
+    ];
+
+    return { categoryIds, subCategoryIds };
   };
 }
 
