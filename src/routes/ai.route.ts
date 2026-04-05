@@ -28,14 +28,13 @@ export class AIRoutes implements Routes {
 
     this.router.post(
       "/equipment/compare",
-      Authorize(UserRole.USER),
       ValidationMiddlware(CompareEquipmentSchema, "body"),
       aiController.compareEquipments
     );
 
     this.router.get(
       "/equipment/:id/summarize",
-      Authorize(UserRole.USER),
+      Authorize(UserRole.PUBLIC),
       aiController.summarizeEquipment
     );
   };
