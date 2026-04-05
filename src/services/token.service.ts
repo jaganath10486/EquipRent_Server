@@ -56,7 +56,6 @@ export class TokenService {
       accessToken: accessToken,
       refreshToken: refreshToken,
     };
-    // const userData = await this.userService.getUserById(data.userId)
     if (!data) {
       throw new HttpExceptionError(401, "Failed to veirfy the token");
     }

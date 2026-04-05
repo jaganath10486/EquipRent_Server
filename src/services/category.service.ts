@@ -86,23 +86,12 @@ class CategoryService {
   }
   public async getCategories(filter: Record<string, any>) {
     const cachedData = await this.cacheService.getJson(RedisKeys.CATEGORIES, JSON.stringify(filter));
-    // if (!isEmpty(cachedData)) {
-    //   return cachedData;
-    // }
     let query = [
       {
         $match: {
           ...filter,
         },
       },
-      // {
-      //   $lookup: {
-      //     from: Collections.SUBCATEGORY,
-      //     localField: "_id",
-      //     foreignField: "categoryId",
-      //     as: "subCategories",
-      //   },
-      // },
       {
         $project: {
           __v: 0,

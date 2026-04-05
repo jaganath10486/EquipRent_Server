@@ -7,6 +7,7 @@ import { AuthRoutes } from "./auth.route";
 import { EquipmentBookingRoutes } from "./equipment-booking.route";
 import { TokenRoutes } from "./token.route";
 import { UserActivityRoutes } from "./user-activity.route";
+import { AIRoutes } from "./ai.route";
 const router = Router();
 
 const userRouter = new UserRoutes();
@@ -17,6 +18,7 @@ const equipentRoutes = new EquimentRoutes();
 const authRoutes = new AuthRoutes();
 const userActivityRoutes = new UserActivityRoutes();
 const tokenRoutes = new TokenRoutes();
+const aiRoutes = new AIRoutes();
 
 router.use("/equipment/bookings", equipmentBookingRouter.router);
 router.use(categoryRouter.router);
@@ -26,5 +28,6 @@ router.use("/user", userRouter.router);
 router.use("/auth", authRoutes.router);
 router.use("/token", tokenRoutes.router);
 router.use("/user-activity", userActivityRoutes.router);
+router.use("/ai", aiRoutes.router);
 
 export default router;

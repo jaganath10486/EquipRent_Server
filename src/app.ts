@@ -28,7 +28,6 @@ class App {
     this.initiallizeErrorMiddleware();
   }
   public initiallizeMiddleware() {
-    // this.app.use(morgan("combined"));
     this.app.use(helmet());
     this.app.use(cors({ origin: true }));
     this.app.use(express.json());
@@ -48,7 +47,6 @@ class App {
         .catch(() => {
           console.error("Error in conntecting to mongo db");
         });
-      // mongodb.
     } catch (err) {
       console.log("err :", err);
     }
@@ -58,7 +56,6 @@ class App {
       windowMs: 15 * 60 * 1000,
       max: 100,
     });
-    // this.app.use(limiter);
   }
   public initiallizeServer() {
     this.server = this.app.listen(PORT, () => {

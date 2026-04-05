@@ -100,6 +100,8 @@ const EquipmentSchema = new Schema(
   { timestamps: true }
 );
 
+EquipmentSchema.index({ name: "text", description: "text", tags: "text" });
+
 const EquipmentModel = function () {
   return model<EquipmentInterface & Document>(
     Collections.EQUIPMENT,

@@ -167,9 +167,9 @@ export class EquipmentBookingService {
         {
           $lookup: {
             from: Collections.EQUIPMENT, 
-            localField: "items.equipmentId", // the field inside items array
-            foreignField: "_id", // the _id field in equipments
-            as: "equipmentDetails", // output array field
+            localField: "items.equipmentId",
+            foreignField: "_id",
+            as: "equipmentDetails",
           },
         },
         {
@@ -203,7 +203,7 @@ export class EquipmentBookingService {
         },
         {
           $project: {
-            equipmentDetails: 0, // remove temp field
+            equipmentDetails: 0,
           },
         },
       ])

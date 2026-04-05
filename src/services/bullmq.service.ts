@@ -104,13 +104,10 @@ export class BullMQService {
     const worker = new Worker(queueName, processor, defaultOptions);
     this.workers.set(queueName, worker);
 
-    // Set up worker events
-    // this.setupWorkerEvents(queueName, worker);
 
     return worker;
   }
 
-  // Setup queue events for monitoring
   private setupQueueEvents(queueName: string) {
     const queueEvents = new QueueEvents(queueName, {
       connection: this.connection,
@@ -140,7 +137,6 @@ export class BullMQService {
     });
   }
 
-  // Setup worker events
   setupWorkerEvents(queueName: string, worker: Worker) {
     worker.on("completed", (job) => {
       console.log(`Worker completed job ${job.id} in queue ${queueName}`);
@@ -159,17 +155,14 @@ export class BullMQService {
     });
   }
 
-  // Get queue by name
   getQueue(queueName: string) {
     return this.queues.get(queueName);
   }
 
-  // Get worker by name
   getWorker(queueName: string) {
     return this.workers.get(queueName);
   }
 
-  // Add job to queue
   async addJob(
     queueName: string,
     jobName: string,
@@ -184,7 +177,6 @@ export class BullMQService {
     return await queue.add(jobName, data, options);
   }
 
-  // Get queue statistics
   async getQueueStats(queueName: string) {
     const queue = this.getQueue(queueName);
     if (!queue) {
@@ -209,25 +201,21 @@ export class BullMQService {
   }
 
   async close() {
-    // Close all workers
     for (const [name, worker] of this.workers) {
       console.log(`Closing worker for queue: ${name}`);
       await worker.close();
     }
 
-    // Close all queue events
     for (const [name, queueEvents] of this.queueEvents) {
       console.log(`Closing queue events for: ${name}`);
       await queueEvents.close();
     }
 
-    // Close all queues
     for (const [name, queue] of this.queues) {
       console.log(`Closing queue: ${name}`);
       await queue.close();
     }
 
-    // Clear maps
     this.workers.clear();
     this.queueEvents.clear();
     this.queues.clear();

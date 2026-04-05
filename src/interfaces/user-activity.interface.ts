@@ -10,6 +10,6 @@ export interface UserActivityInterface {
   reference: UserActivityReference;
   isPositive: number;
   action: UserActivity;
-  createdAt?: Date; // better as Date
+  createdAt?: Date;
   updatedAt?: Date;
 }

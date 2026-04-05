@@ -5,7 +5,6 @@ import { CategoryIdClass, SubCategoryIdClass } from "./category.class";
 
 export class EquipmentClass {
   id: string;
-  // user: Object;
   category: Object;
   subCategory: Object;
   name?: string;
@@ -22,7 +21,6 @@ export class EquipmentClass {
   };
   constructor(data: any) {
     this.id = assignorDefaultValue(data._id, "");
-    // this.user = new UserIdClass(data?.userId);
     this.category = new CategoryIdClass(data.categoryId);
     this.subCategory = new SubCategoryIdClass(data.subCategoryId);
     this.name = assignorDefaultValue(data.name, "");

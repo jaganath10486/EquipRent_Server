@@ -21,6 +21,7 @@ export const {
   REDIS_HOST,
   REDIS_USERNAME,
   REDIS_PASSWORD,
+  GEMINI_API_KEY,
 } = process.env;
 
 export const MongoDbAccessConfig: MongoDBConfig = {

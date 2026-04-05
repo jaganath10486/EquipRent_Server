@@ -15,7 +15,6 @@ export class EmailService {
   private nodeMailerTransport!: Transporter;
 
   constructor() {
-    // this.initiallizeResendEmail();
     this.initiallizeNodeMailer();
   }
 

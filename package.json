@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^1.48.0",
     "@types/bcrypt": "^5.0.2",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",

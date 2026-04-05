@@ -78,16 +78,12 @@ export class EquipmentController {
   ) => {
     try {
       const userId = req.user?.userId || "";
-      let data: any[] = [];
-      if (userId) {
-        data = await this.equipmentService.getRecommendedEquipments(userId);
-      } else {
-        data = [];
+      if (!userId) {
+        res.status(200).json({ data: { items: [], reasons: [], profileSummary: "", isAiPowered: false }, message: "Fetched recommendations" });
+        return;
       }
-      res.status(200).json({
-        data: data,
-        message: "Fetched the recommendations equipmenyts",
-      });
+      const data = await this.equipmentService.getRecommendedEquipments(userId);
+      res.status(200).json({ data, message: "Fetched recommendations" });
       return;
     } catch (err) {
       next(err);

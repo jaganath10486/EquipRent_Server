@@ -1,6 +1,9 @@
 import HttpExceptionError from "@src/exception/httpexception";
+import { GeminiService } from "./gemini.service";
 import { EquipmentInterface } from "@interfaces/equipment.interface";
 import { EquipmentModel } from "@src/models/equipment.model";
+import { CategoryModel } from "@src/models/category.model";
+import { ParsedSearchFilters } from "@validations/equipment.validation";
 import { isEmpty } from "@utils/data.util";
 import { isValidObjectId } from "@validations/data.validation";
 import { userPopulateQuery } from "@src/queries/common.query";
@@ -26,6 +29,7 @@ import { EquipmentBookingModel } from "@src/models/equipments-booking.model";
 
 class EquipmentService {
   private equipmentModel = EquipmentModel();
+  private categoryModel = CategoryModel();
   private categoryService = new CategoryService();
   private subCategoryService = new SubCategoryService();
   private cacheService = new CacheService();
@@ -181,60 +185,144 @@ class EquipmentService {
     return transformedResponse;
   };
 
+  public naturalSearchEquipments = async (
+    filters: ParsedSearchFilters | null,
+    rawQuery: string,
+    limit = 20
+  ): Promise<{ results: any[]; usedFallback: boolean }> => {
+    if (!filters) {
+      try {
+        const data = await this.equipmentModel
+          .find({ $text: { $search: rawQuery }, isActive: true })
+          .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
+          .limit(limit)
+          .lean();
+        return { results: data.map((item) => new EquipmentClass(item)), usedFallback: true };
+      } catch {
+        const data = await this.equipmentModel
+          .find({ name: { $regex: rawQuery, $options: "i" }, isActive: true })
+          .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
+          .limit(limit)
+          .lean();
+        return { results: data.map((item) => new EquipmentClass(item)), usedFallback: true };
+      }
+    }
+
+    const mongoFilters: Record<string, any> = { isActive: true };
+
+    if (filters.category) {
+      const category = await this.categoryModel.findOne({
+        categoryName: { $regex: new RegExp(filters.category, "i") },
+      });
+      if (category) mongoFilters["categoryId"] = category._id;
+    }
+
+    if (filters.priceMin !== null || filters.priceMax !== null) {
+      mongoFilters["prices.dailyRent"] = {};
+      if (filters.priceMin !== null)
+        mongoFilters["prices.dailyRent"]["$gte"] = filters.priceMin;
+      if (filters.priceMax !== null)
+        mongoFilters["prices.dailyRent"]["$lte"] = filters.priceMax;
+    }
+
+    if (filters.keywords && filters.keywords.length > 0) {
+      const escaped = filters.keywords.map((k) =>
+        k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      );
+      const pattern = escaped.join("|");
+      mongoFilters["$or"] = [
+        { name: { $regex: pattern, $options: "i" } },
+        { description: { $regex: pattern, $options: "i" } },
+        { tags: { $elemMatch: { $regex: pattern, $options: "i" } } },
+      ];
+    }
+
+    const sortQuery: Record<string, any> = {};
+    if (filters.sortBy === "price_asc") sortQuery["prices.dailyRent"] = 1;
+    if (filters.sortBy === "price_desc") sortQuery["prices.dailyRent"] = -1;
+
+    const data = await this.equipmentModel
+      .find(mongoFilters)
+      .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
+      .sort(Object.keys(sortQuery).length > 0 ? sortQuery : undefined)
+      .limit(limit)
+      .lean();
+
+    return { results: data.map((item) => new EquipmentClass(item)), usedFallback: false };
+  };
+
   public isEquipmentExists = async (filters: Record<string, any>) => {
     const isEquipmentExists = await this.equipmentModel.exists({ ...filters });
     return isEquipmentExists;
   };
 
-  public getRecommendedEquipments = async (userId: string) => {
-    const { likedIds, viewedIds, bookedEquipmentIds } =
-      await this.getUserInterestIds(userId);
-    const { categoryIds, subCategoryIds } =
-      await this.getUserInterestCategories({
-        likedIds,
-        viewedIds,
-        bookedEquipmentIds,
-      });
+  public getRecommendedEquipments = async (userId: string): Promise<{
+    items: EquipmentClass[];
+    reasons: string[];
+    profileSummary: string;
+    isAiPowered: boolean;
+  }> => {
+    const cached = await this.cacheService.getJson(RedisKeys.AIRecommendations, userId);
+    if (cached) return cached;
 
-    const sameSubCategory = await this.equipmentModel
-      .find({
-        subCategoryId: { $in: subCategoryIds },
-        _id: { $nin: bookedEquipmentIds }, // exclude already booked
-      })
-      .populate([
-        ...userPopulateQuery,
-        ...CategoryPopulate,
-        ...SubCategoryPopulate,
-      ])
-      .limit(10)
-      .lean()
-      .exec();
+    const { likedIds, viewedIds, bookedEquipmentIds } = await this.getUserInterestIds(userId);
+    const allIds = [...likedIds, ...viewedIds, ...bookedEquipmentIds];
+    if (allIds.length === 0) return { items: [], reasons: [], profileSummary: "", isAiPowered: false };
 
-    const sameCategory = await this.equipmentModel
-      .find({
-        categoryId: { $in: categoryIds },
-        subCategoryId: { $nin: subCategoryIds }, // avoid duplicates
-        _id: { $nin: bookedEquipmentIds },
-      })
-      .populate([
-        ...userPopulateQuery,
-        ...CategoryPopulate,
-        ...SubCategoryPopulate,
-      ])
-      .limit(5)
-      .lean()
-      .exec();
+    const { categoryIds, subCategoryIds } = await this.getUserInterestCategories({ likedIds, viewedIds, bookedEquipmentIds });
 
-    const recommended = [...sameSubCategory, ...sameCategory].slice(0, 15);
-    const transformedResponse = recommended.map(
-      (item) => new EquipmentClass(item)
-    );
-    return transformedResponse;
+    const [sameSubCategory, sameCategory] = await Promise.all([
+      this.equipmentModel
+        .find({ subCategoryId: { $in: subCategoryIds }, _id: { $nin: bookedEquipmentIds } })
+        .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
+        .limit(30).lean().exec(),
+      this.equipmentModel
+        .find({ categoryId: { $in: categoryIds }, subCategoryId: { $nin: subCategoryIds }, _id: { $nin: bookedEquipmentIds } })
+        .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
+        .limit(20).lean().exec(),
+    ]);
+    const candidatePool = [...sameSubCategory, ...sameCategory];
+    if (candidatePool.length === 0) return { items: [], reasons: [], profileSummary: "", isAiPowered: false };
+
+    const interestEquipments = await this.equipmentModel
+      .find({ _id: { $in: allIds.slice(0, 20) } })
+      .select("name prices categoryId subCategoryId tags")
+      .populate([...CategoryPopulate, ...SubCategoryPopulate])
+      .lean();
+
+    const userInterestProfile = this.buildUserInterestProfileText(interestEquipments, likedIds, viewedIds, bookedEquipmentIds);
+
+    const compactCandidates = candidatePool.map((eq: any) => ({
+      id: eq._id.toString(),
+      name: eq.name,
+      category: eq.categoryId?.categoryName || "",
+      subCategory: eq.subCategoryId?.subCategoryName || "",
+      price: eq.prices?.dailyRent || 0,
+      tags: Array.isArray(eq.tags) ? eq.tags : [],
+    }));
+
+    try {
+      const geminiService = GeminiService.getInstance();
+      const aiResult = await geminiService.generatePersonalizedRecommendations(userInterestProfile, compactCandidates);
+
+      const candidateMap = new Map<string, any>(candidatePool.map((eq: any) => [eq._id.toString(), eq]));
+      const validRecs = aiResult.recommendations.filter(r => candidateMap.has(r.id)).slice(0, 15);
+      const items = validRecs.map(r => new EquipmentClass(candidateMap.get(r.id)));
+      const reasons = validRecs.map(r => r.reason);
+
+      const result = { items, reasons, profileSummary: aiResult.profileSummary, isAiPowered: true };
+
+      await this.cacheService.setJson(RedisKeys.AIRecommendations, result, userId, 3600);
+      return result;
+
+    } catch {
+      const fallbackItems = candidatePool.slice(0, 15).map((eq: any) => new EquipmentClass(eq));
+      return { items: fallbackItems, reasons: [], profileSummary: "", isAiPowered: false };
+    }
   };
   public getUserInterestIds = async (userId: string) => {
     const objectId = new Types.ObjectId(userId);
 
-    // get all equipment user liked or viewed
     const userActivities = await this.userActivityModel
       .find({
         userId: objectId,
@@ -244,7 +332,6 @@ class EquipmentService {
       })
       .lean();
 
-    // get all booked equipments by the user
     const userBookings = await this.equipmentBookingModel.aggregate([
       { $match: { userId: objectId } },
       { $unwind: "$items" },
@@ -266,6 +353,35 @@ class EquipmentService {
       .map((a) => a.sourceId);
 
     return { likedIds, viewedIds, bookedEquipmentIds };
+  };
+
+  private buildUserInterestProfileText = (
+    equipments: any[],
+    likedIds: Types.ObjectId[],
+    viewedIds: Types.ObjectId[],
+    bookedIds: Types.ObjectId[]
+  ): string => {
+    const likedSet = new Set(likedIds.map(id => id.toString()));
+    const viewedSet = new Set(viewedIds.map(id => id.toString()));
+    const bookedSet = new Set(bookedIds.map(id => id.toString()));
+
+    const liked = equipments.filter(e => likedSet.has(e._id.toString()));
+    const viewed = equipments.filter(e => viewedSet.has(e._id.toString()) && !likedSet.has(e._id.toString()));
+    const booked = equipments.filter(e => bookedSet.has(e._id.toString()));
+
+    const fmt = (e: any) => `- ${e.name} (${(e.categoryId as any)?.categoryName || "Unknown"}, ₹${(e.prices as any)?.dailyRent || "?"}/day)`;
+
+    const prices = equipments.map((e: any) => (e.prices as any)?.dailyRent).filter(Boolean);
+    const priceRange = prices.length > 0 ? `₹${Math.min(...prices)} – ₹${Math.max(...prices)}/day` : "Unknown";
+    const categories = [...new Set(equipments.map((e: any) => (e.categoryId as any)?.categoryName).filter(Boolean))];
+
+    const parts: string[] = [];
+    if (liked.length > 0) parts.push(`LIKED (strong interest):\n${liked.slice(0, 5).map(fmt).join("\n")}`);
+    if (viewed.length > 0) parts.push(`VIEWED (browsed):\n${viewed.slice(0, 5).map(fmt).join("\n")}`);
+    if (booked.length > 0) parts.push(`PREVIOUSLY BOOKED:\n${booked.slice(0, 5).map(fmt).join("\n")}`);
+    parts.push(`INFERRED PREFERENCES:\n- Price range engaged: ${priceRange}\n- Top categories: ${categories.join(", ")}`);
+
+    return parts.join("\n\n");
   };
 
   public getUserInterestCategories = async ({

@@ -67,7 +67,6 @@ const EquipmentBookingSchema = new Schema(
       default: DeliveryType.PICKUP,
     },
 
-    // Payment info
     paymentMode: {
       type: SchemaTypes.String,
       enum: PaymentMode,
@@ -79,11 +78,6 @@ const EquipmentBookingSchema = new Schema(
       default: false,
     },
 
-    // paymentId: {
-    //   type: SchemaTypes.ObjectId,
-    //   ref: Collections.PAYMENT, // future reference, not used now
-    //   required: false,
-    // },
 
     totalRentalAmount: {
       type: SchemaTypes.Number,
@@ -114,7 +108,6 @@ const EquipmentBookingSchema = new Schema(
       required: false,
     },
 
-    // Return details
     isReturned: {
       type: SchemaTypes.Boolean,
       default: false,
@@ -130,31 +123,7 @@ const EquipmentBookingSchema = new Schema(
       required: false,
     },
 
-    // Optional: store pickup warehouse for clarity
-    // pickupLocation: {
-    //   address: { type: SchemaTypes.String, required: false },
-    //   locationId: {
-    //     type: SchemaTypes.ObjectId,
-    //     ref: Collections.LOCATION,
-    //     required: false,
-    //   },
-    // },
 
-    // Optional: delivery support in future
-    // deliveryDetails: {
-    //   isDelivery: { type: SchemaTypes.Boolean, default: false },
-    //   deliveryAgentId: {
-    //     type: SchemaTypes.ObjectId,
-    //     ref: Collections.USER,
-    //     required: false,
-    //   },
-    //   deliveryStatus: {
-    //     type: SchemaTypes.String,
-    //     enum: ["pending", "assigned", "in_transit", "delivered", "failed"],
-    //     default: "pending",
-    //   },
-    //   deliveryTime: { type: SchemaTypes.Date, required: false },
-    // },
   },
   {
     timestamps: true,

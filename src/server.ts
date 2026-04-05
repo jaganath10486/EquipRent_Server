@@ -1,4 +1,4 @@
-import "tsconfig-paths/register"; // Enables path aliases
+import "tsconfig-paths/register";
 import App from "@src/app";
 const app = new App();
 

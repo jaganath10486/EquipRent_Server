@@ -6,9 +6,4 @@ export interface Config {
 
 export interface MongoDBConfig {
   url: string;
-  // options: {
-  //   useNewUrlParser: boolean;
-  //   useUnifiedTopology: boolean;
-  //   useFindAndModify: boolean;
-  // };
 }
