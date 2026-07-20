@@ -2,22 +2,25 @@ import { Job, Queue, Worker } from "bullmq";
 import { bulMQService } from "./bullmq.service";
 import { EmailService } from "./email.service";
 import HttpExceptionError from "@src/exception/httpexception";
-import { EMAIL_ADDRESS } from "@configs/environment";
+import { EMAIL_ADDRESS, IS_REDIS_CACHE_ENABLED } from "@configs/environment";
 import { EmailInterface } from "@interfaces/email.interface";
+import { toBoolean } from "@utils/data.util";
 
 class EmailQueueService {
   queueName = "email-queue";
-  private emailQueue: Queue;
-  private emailWorker: Worker;
+  private emailQueue: Queue | null = null;
+  private emailWorker: Worker | null = null;
   private emailService;
   constructor() {
     this.emailService = EmailService.getInstance();
-    this.emailQueue = bulMQService.createQueue(this.queueName);
-    this.emailWorker = bulMQService.createWorker(
-      this.queueName,
-      this.proccessJob,
-      { concurrency: 3 }
-    );
+    if (toBoolean(IS_REDIS_CACHE_ENABLED)) {
+      this.emailQueue = bulMQService.createQueue(this.queueName);
+      this.emailWorker = bulMQService.createWorker(
+        this.queueName,
+        this.proccessJob,
+        { concurrency: 3 }
+      );
+    }
   }
   proccessJob = async (job: Job) => {
     console.log("job data :", job.data);
@@ -43,6 +46,9 @@ class EmailQueueService {
   };
 
   sendEmail = async (data: EmailInterface) => {
+    if (!toBoolean(IS_REDIS_CACHE_ENABLED)) {
+      return await this.emailService.sendEmail(data);
+    }
     try {
       const job = await bulMQService.addJob(
         this.queueName,

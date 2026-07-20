@@ -1,4 +1,4 @@
-import { REDIS_HOST, REDIS_PASSWORD, REDIS_PORT } from "@configs/environment";
+import { IS_REDIS_CACHE_ENABLED, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT } from "@configs/environment";
 import {
   Job,
   JobsOptions,
@@ -8,16 +8,20 @@ import {
   WorkerOptions,
 } from "bullmq";
 import { Redis } from "ioredis";
+import { toBoolean } from "@utils/data.util";
+
 export class BullMQService {
   public connection: any;
   private queues;
   private workers;
   private queueEvents;
   constructor() {
-    this.getConnection();
     this.queues = new Map();
     this.workers = new Map();
     this.queueEvents = new Map();
+    if (toBoolean(IS_REDIS_CACHE_ENABLED)) {
+      this.getConnection();
+    }
   }
   getConnection() {
     if (!this.connection) {
@@ -27,6 +31,13 @@ export class BullMQService {
         password: REDIS_PASSWORD,
         maxRetriesPerRequest: null,
         connectTimeout: 6000,
+        retryStrategy: (times) => {
+          if (times >= 3) {
+            console.error("BullMQ Redis max retries (3) reached. Giving up.");
+            return null;
+          }
+          return Math.min(times * 500, 2000);
+        },
       });
 
       this.connection.on("connect", () => {
@@ -34,7 +45,7 @@ export class BullMQService {
       });
 
       this.connection.on("error", (error: any) => {
-        console.error("Io Redis connection error:", error);
+        console.error("Io Redis connection error:", error.message);
       });
 
       this.connection.on("close", () => {

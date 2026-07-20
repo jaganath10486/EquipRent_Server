@@ -32,6 +32,13 @@ export class RedisService {
         socket: {
           host: REDIS_HOST,
           port: Number(REDIS_PORT),
+          reconnectStrategy: (retries) => {
+            if (retries >= 3) {
+              console.error(`Redis max retries (3) reached. Giving up.`);
+              return new Error("Redis max retries reached");
+            }
+            return Math.min(retries * 500, 2000);
+          },
         },
       });
       this.client
@@ -40,9 +47,9 @@ export class RedisService {
           console.log("Redis Connected Successfully");
         })
         .catch((err) => {
-          console.error("Failed to connect the redis cache", err);
+          console.error("Failed to connect to Redis:", err.message);
         });
-      this.client.on("error", (error) => console.error("Redis error:", error));
+      this.client.on("error", (error) => console.error("Io Redis connection error:", error));
     }
   }
 
