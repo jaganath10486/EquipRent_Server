@@ -123,7 +123,15 @@ const EquipmentBookingSchema = new Schema(
       required: false,
     },
 
-
+    /**
+     * Keys of lifecycle notifications already sent, e.g. "due:2026-10-03".
+     * Kept on the booking rather than in the cache so a Redis outage or a
+     * restart cannot cause the same person to be emailed twice a day.
+     */
+    notificationsSent: {
+      type: [SchemaTypes.String],
+      default: [],
+    },
   },
   {
     timestamps: true,

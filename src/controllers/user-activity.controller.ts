@@ -40,6 +40,25 @@ export class UserActivityController {
       throw new HttpExceptionError(400, "Source Id or User Id is not valid");
     }
   };
+  /**
+   * The saved list, each entry carrying the next window it is actually free.
+   * A bookmark you cannot act on is just a number in the navbar.
+   */
+  getSavedEquipments = async (
+    req: IRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const data = await this.userActivityService.getLikedEquipments(
+        req.user?.userId || ""
+      );
+      res.status(200).json({ data, message: "Fetched saved equipment" });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   getUserActivityCount = async (
     req: IRequest,
     res: Response,

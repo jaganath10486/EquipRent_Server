@@ -14,7 +14,13 @@ export class EquimentRoutes implements Routes {
   }
   public initiallizeRoutes = () => {
     const equipmentController = new EquipmentController();
-    this.router.post(`${this.baseUrl}`, equipmentController.createEquipment);
+
+    // Listing now requires a signed-in owner; it used to be open to anyone.
+    this.router.post(
+      `${this.baseUrl}`,
+      Authorize(UserRole.USER),
+      equipmentController.createEquipment
+    );
     this.router.get(
       `${this.baseUrl}`,
       Authorize(UserRole.PUBLIC),
@@ -30,6 +36,16 @@ export class EquimentRoutes implements Routes {
       `${this.baseUrl}/recommendations`,
       Authorize(UserRole.PUBLIC),
       equipmentController.recommendEquipments
+    );
+    this.router.get(
+      `${this.baseUrl}/:id/availability`,
+      Authorize(UserRole.PUBLIC),
+      equipmentController.getAvailability
+    );
+    this.router.post(
+      `${this.baseUrl}/:id/abandoned-quote`,
+      Authorize(UserRole.PUBLIC),
+      equipmentController.recordAbandonedQuote
     );
     this.router.get(
       `${this.baseUrl}/:id`,

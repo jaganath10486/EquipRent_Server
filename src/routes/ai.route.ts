@@ -7,6 +7,7 @@ import { ValidationMiddlware } from "@src/middlewares/validation.middleware";
 import {
   CompareEquipmentSchema,
   NaturalSearchRequestSchema,
+  KitRequestSchema,
 } from "@validations/equipment.validation";
 
 export class AIRoutes implements Routes {
@@ -24,6 +25,14 @@ export class AIRoutes implements Routes {
       Authorize(UserRole.PUBLIC),
       ValidationMiddlware(NaturalSearchRequestSchema, "body"),
       aiController.naturalSearchEquipments
+    );
+
+    // Turns an occasion into an availability-checked, priced bill of materials.
+    this.router.post(
+      "/kit",
+      Authorize(UserRole.PUBLIC),
+      ValidationMiddlware(KitRequestSchema, "body"),
+      aiController.buildKit
     );
 
     this.router.post(

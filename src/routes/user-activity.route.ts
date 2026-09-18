@@ -19,6 +19,12 @@ export class UserActivityRoutes implements Routes {
       ValidationMiddlware(UserActivityValidation, "body"),
       userActivityController.performAction
     );
+    // The navbar heart has always shown a count and linked nowhere.
+    this.router.get(
+      "/saved",
+      Authorize(UserRole.USER),
+      userActivityController.getSavedEquipments
+    );
     this.router.get(
       "/count",
       Authorize(UserRole.USER),

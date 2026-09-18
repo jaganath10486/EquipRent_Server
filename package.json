@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc && tsc-alias",
     "start": "node dist/src/server.js",
-    "dev": "nodemon"
+    "dev": "nodemon",
+    "check": "ts-node -r tsconfig-paths/register src/services/__checks__/rental-rules.check.ts"
   },
   "author": "",
   "license": "ISC",

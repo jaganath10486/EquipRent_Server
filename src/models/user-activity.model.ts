@@ -8,7 +8,8 @@ import { Collections } from "@src/enums/collections.enum";
 
 const UserActivitySchema: Schema<UserActivityInterface & Document> = new Schema<
   UserActivityInterface & Document
->({
+>(
+  {
   sourceId: {
     type: SchemaTypes.ObjectId,
     required: true,
@@ -33,7 +34,14 @@ const UserActivitySchema: Schema<UserActivityInterface & Document> = new Schema<
     required: false,
     default: 0,
   },
-});
+  },
+  // The interface always declared createdAt/updatedAt but the schema never
+  // enabled them, so there was no way to tell a like from last year from one
+  // made a minute ago.
+  { timestamps: true }
+);
+
+UserActivitySchema.index({ userId: 1, action: 1, isPositive: 1, updatedAt: -1 });
 
 export const UserActivityModel = () => {
   return model<UserActivityInterface & Document>(

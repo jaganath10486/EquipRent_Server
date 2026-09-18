@@ -2,8 +2,11 @@ import { Router } from "express";
 import { Routes } from "@interfaces/request.interface";
 import { EquipmentBookingController } from "@src/controllers/equipment-booking.controller";
 import { ValidationMiddlware } from "@src/middlewares/validation.middleware";
-import { EquipmentBookingSchema } from "@src/models/equipments-booking.model";
-import { CreateEquipmentBookingSchema } from "@validations/equipment-booking.validation";
+import {
+  CreateEquipmentBookingSchema,
+  QuoteBookingSchema,
+  UpdateBookingStatusSchema,
+} from "@validations/equipment-booking.validation";
 import { Authorize } from "@src/middlewares/authorize.middleware";
 import { UserRole } from "@src/enums/user.enum";
 
@@ -13,18 +16,34 @@ export class EquipmentBookingRoutes implements Routes {
     this.initiallizeRoutes();
   }
   initiallizeRoutes = () => {
-    const equipmentBookingController = new EquipmentBookingController();
+    const controller = new EquipmentBookingController();
+
     this.router.post(
       `/create`,
       Authorize(UserRole.USER),
       ValidationMiddlware(CreateEquipmentBookingSchema, "body"),
-      equipmentBookingController.createBooking
+      controller.createBooking
     );
-    this.router.get(
-      "/user",
+
+    // Lets the client show a total without recomputing it and disagreeing
+    // with the server, which is how a 9,500 quote became a 19,500 booking.
+    this.router.post(
+      `/quote`,
+      Authorize(UserRole.PUBLIC),
+      ValidationMiddlware(QuoteBookingSchema, "body"),
+      controller.quoteBooking
+    );
+
+    this.router.get("/user", Authorize(UserRole.USER), controller.getAllUserBookings);
+    this.router.get("/deposits", Authorize(UserRole.USER), controller.getDepositLedger);
+
+    this.router.patch(
+      "/:id/status",
       Authorize(UserRole.USER),
-      equipmentBookingController.getAllUserBookings
+      ValidationMiddlware(UpdateBookingStatusSchema, "body"),
+      controller.updateStatus
     );
-    this.router.get("/remainder", equipmentBookingController.getAllRemainders);
+
+    this.router.get("/remainder", controller.getAllRemainders);
   };
 }

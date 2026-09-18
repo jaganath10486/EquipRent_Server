@@ -33,4 +33,5 @@ export interface EquipmentBooking {
   actualReturnDate?: Date;
   cancelledReason?: string;
   totalAmountPaid ?: number;
+  notificationsSent?: string[];
 }

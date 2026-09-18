@@ -5,5 +5,7 @@ export enum Collections {
   SUBCATEGORY = "subcategories",
   EQUIPMENTBOOKINGS = "equipmentBookings",
   USERACTIVITY = 'useractivity',
-  USERACTIVITYCOUNT = 'useractivitycount'
+  USERACTIVITYCOUNT = 'useractivitycount',
+  SEARCHQUERY = 'searchqueries',
+  VIEWEVENT = 'viewevents'
 }

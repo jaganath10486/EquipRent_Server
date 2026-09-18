@@ -26,6 +26,10 @@ import {
 } from "@src/enums/user-activity.enum";
 import { UserActivityModel } from "@src/models/user-activity.model";
 import { EquipmentBookingModel } from "@src/models/equipments-booking.model";
+import { SubCategoryModel } from "@src/models/sub-category.model";
+import { SearchQueryModel } from "@src/models/search-query.model";
+import { availabilityService } from "./availability.service";
+import { TaxonomyEntry } from "./gemini.service";
 
 class EquipmentService {
   private equipmentModel = EquipmentModel();
@@ -36,6 +40,8 @@ class EquipmentService {
   private userActivityService = new UserActivityService();
   private userActivityModel = UserActivityModel();
   private equipmentBookingModel = EquipmentBookingModel();
+  private subCategoryModel = SubCategoryModel();
+  private searchQueryModel = SearchQueryModel();
 
   public getEquipments = async (filters: any) => {
     const data = await this.equipmentModel
@@ -185,36 +191,146 @@ class EquipmentService {
     return transformedResponse;
   };
 
+  /**
+   * The real category tree, handed to the parser so it stops guessing names.
+   * Cached because it changes about once a quarter.
+   */
+  public getTaxonomy = async (): Promise<TaxonomyEntry[]> => {
+    const cached = await this.cacheService.getJson(RedisKeys.Taxonomy, "all");
+    if (cached) return cached;
+
+    const [categories, subCategories] = await Promise.all([
+      this.categoryModel.find({ isActive: true }).select("categoryName").lean(),
+      this.subCategoryModel
+        .find({ isActive: true })
+        .select("subCategoryName categoryId")
+        .lean(),
+    ]);
+
+    const taxonomy: TaxonomyEntry[] = categories.map((category: any) => ({
+      categoryName: category.categoryName,
+      subCategories: subCategories
+        .filter((sub: any) => String(sub.categoryId) === String(category._id))
+        .map((sub: any) => sub.subCategoryName),
+    }));
+
+    await this.cacheService.setJson(RedisKeys.Taxonomy, taxonomy, "all", 3600);
+    return taxonomy;
+  };
+
+  /** Loose singular/plural folding so "chairs" finds "chair". */
+  private keywordStem = (keyword: string) => {
+    const escaped = String(keyword || "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return escaped.replace(/(ies|es|s)$/i, "") || escaped;
+  };
+
+  /**
+   * Short stems must match whole words.
+   *
+   * "PA speakers" yields the stem "pa", and as a bare substring that matches
+   * "Padded Folding Chair" — which is how a query for a PA system came back
+   * with chairs and a camping pillow. Anything under four characters is
+   * anchored to a word boundary; longer stems stay loose so "camp" still finds
+   * "camping".
+   */
+  private stemMatches = (stem: string, haystack: string) => {
+    if (!stem) return false;
+    if (stem.length >= 4) return haystack.includes(stem);
+    return new RegExp(`\\b${stem}`, "i").test(haystack);
+  };
+
+  private stemRegex = (stem: string) => (stem.length >= 4 ? stem : `\\b${stem}`);
+
+  /**
+   * Relevance scoring.
+   *
+   * The old query built one `$or` of keyword regexes and returned whatever
+   * matched in natural collection order, with no notion of a better or worse
+   * match. That is how "tent for an outdoor party" came back with a Pentax DSLR
+   * first: one weak keyword hit anywhere in a description was indistinguishable
+   * from a direct name match. Scoring restores the ranking the parser worked out
+   * and the query layer was throwing away.
+   */
+  private scoreEquipment = (
+    equipment: any,
+    filters: ParsedSearchFilters,
+    matchedCategoryId?: string,
+    matchedSubCategoryIds: string[] = []
+  ) => {
+    let score = 0;
+    const name = String(equipment.name || "").toLowerCase();
+    const description = String(equipment.description || "").toLowerCase();
+    const tags = (equipment.tags || []).map((t: string) => String(t).toLowerCase());
+
+    const categoryId = String(equipment.categoryId?._id ?? equipment.categoryId);
+    const subCategoryId = String(
+      equipment.subCategoryId?._id ?? equipment.subCategoryId
+    );
+
+    if (matchedCategoryId && categoryId === matchedCategoryId) score += 3;
+    if (matchedSubCategoryIds.length && matchedSubCategoryIds.includes(subCategoryId)) {
+      score += 3;
+    }
+
+    for (const keyword of filters.keywords || []) {
+      const stem = this.keywordStem(keyword).toLowerCase();
+      if (!stem) continue;
+      if (this.stemMatches(stem, name)) score += 4;
+      if (tags.some((tag: string) => this.stemMatches(stem, tag))) score += 2;
+      if (this.stemMatches(stem, description)) score += 1;
+    }
+
+    if (equipment.isFeatured) score += 0.25;
+    return score;
+  };
+
   public naturalSearchEquipments = async (
     filters: ParsedSearchFilters | null,
     rawQuery: string,
     limit = 20
-  ): Promise<{ results: any[]; usedFallback: boolean }> => {
-    if (!filters) {
-      try {
-        const data = await this.equipmentModel
-          .find({ $text: { $search: rawQuery }, isActive: true })
-          .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
-          .limit(limit)
-          .lean();
-        return { results: data.map((item) => new EquipmentClass(item)), usedFallback: true };
-      } catch {
-        const data = await this.equipmentModel
-          .find({ name: { $regex: rawQuery, $options: "i" }, isActive: true })
-          .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
-          .limit(limit)
-          .lean();
-        return { results: data.map((item) => new EquipmentClass(item)), usedFallback: true };
-      }
-    }
+  ): Promise<{
+    results: any[];
+    usedFallback: boolean;
+    matchedCategoryId?: string;
+    hasExactMatch?: boolean;
+  }> => {
+    const textFallback = async () => {
+      const escaped = String(rawQuery || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const data = await this.equipmentModel
+        .find({
+          isActive: true,
+          $or: [
+            { name: { $regex: escaped, $options: "i" } },
+            { description: { $regex: escaped, $options: "i" } },
+            { tags: { $elemMatch: { $regex: escaped, $options: "i" } } },
+          ],
+        })
+        .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
+        .limit(limit)
+        .lean();
+      return {
+        results: data.map((item) => new EquipmentClass(item)),
+        usedFallback: true,
+      };
+    };
+
+    if (!filters) return textFallback();
 
     const mongoFilters: Record<string, any> = { isActive: true };
+    let matchedCategoryId: string | undefined;
+    let matchedSubCategoryIds: string[] = [];
 
     if (filters.category) {
-      const category = await this.categoryModel.findOne({
-        categoryName: { $regex: new RegExp(filters.category, "i") },
-      });
-      if (category) mongoFilters["categoryId"] = category._id;
+      const category = await this.categoryModel
+        .findOne({ categoryName: filters.category })
+        .lean();
+      if (category) matchedCategoryId = String((category as any)._id);
+    }
+    if (filters.subCategory) {
+      const subCategories = await this.subCategoryModel
+        .find({ subCategoryName: filters.subCategory })
+        .lean();
+      matchedSubCategoryIds = subCategories.map((sub: any) => String(sub._id));
     }
 
     if (filters.priceMin !== null || filters.priceMax !== null) {
@@ -225,30 +341,179 @@ class EquipmentService {
         mongoFilters["prices.dailyRent"]["$lte"] = filters.priceMax;
     }
 
-    if (filters.keywords && filters.keywords.length > 0) {
-      const escaped = filters.keywords.map((k) =>
-        k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-      );
-      const pattern = escaped.join("|");
-      mongoFilters["$or"] = [
-        { name: { $regex: pattern, $options: "i" } },
-        { description: { $regex: pattern, $options: "i" } },
-        { tags: { $elemMatch: { $regex: pattern, $options: "i" } } },
-      ];
-    }
+    // Candidates are drawn widely (category OR keyword hits) and ranked after,
+    // rather than intersected: an item in the right category with an unusual
+    // name should still beat an unrelated item that happened to share a word.
+    const orClauses: Record<string, any>[] = [];
+    if (matchedCategoryId) orClauses.push({ categoryId: matchedCategoryId });
+    if (matchedSubCategoryIds.length)
+      orClauses.push({ subCategoryId: { $in: matchedSubCategoryIds } });
 
-    const sortQuery: Record<string, any> = {};
-    if (filters.sortBy === "price_asc") sortQuery["prices.dailyRent"] = 1;
-    if (filters.sortBy === "price_desc") sortQuery["prices.dailyRent"] = -1;
+    const stems = (filters.keywords || [])
+      .map((keyword) => this.keywordStem(keyword))
+      .filter(Boolean);
+    if (stems.length) {
+      const pattern = stems.map((stem) => this.stemRegex(stem)).join("|");
+      orClauses.push({ name: { $regex: pattern, $options: "i" } });
+      orClauses.push({ description: { $regex: pattern, $options: "i" } });
+      orClauses.push({ tags: { $elemMatch: { $regex: pattern, $options: "i" } } });
+    }
+    if (orClauses.length) mongoFilters["$or"] = orClauses;
 
     const data = await this.equipmentModel
       .find(mongoFilters)
       .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
-      .sort(Object.keys(sortQuery).length > 0 ? sortQuery : undefined)
+      .limit(120)
+      .lean();
+
+    if (data.length === 0) return { results: [], usedFallback: false, matchedCategoryId };
+
+    // Anything scoring zero is noise, not a weak match. Returning nothing is a
+    // more honest answer than returning a DSLR for a treadmill query.
+    const ranked = data
+      .map((item: any) => ({
+        item,
+        score: this.scoreEquipment(
+          item,
+          filters,
+          matchedCategoryId,
+          matchedSubCategoryIds
+        ),
+      }))
+      .filter((entry) => entry.score > 0);
+
+    ranked.sort((a, b) => b.score - a.score);
+
+    const topScore = ranked[0]?.score ?? 0;
+
+    /**
+     * Relevance gates; price only orders what is already relevant.
+     *
+     * Sorting the whole result set by price destroyed the ranking: "PA speakers
+     * under 1500" put the cheapest item in the catalogue first and buried the
+     * actual PA speaker. "Under 1500" is a constraint on which speakers, not an
+     * instruction to show the cheapest thing that shares a letter with the query.
+     */
+    const band = ranked.filter((entry) => entry.score >= topScore * 0.6);
+    const rest = ranked.filter((entry) => entry.score < topScore * 0.6);
+
+    if (filters.sortBy === "price_asc") {
+      band.sort(
+        (a, b) => (a.item.prices?.dailyRent ?? 0) - (b.item.prices?.dailyRent ?? 0)
+      );
+    } else if (filters.sortBy === "price_desc") {
+      band.sort(
+        (a, b) => (b.item.prices?.dailyRent ?? 0) - (a.item.prices?.dailyRent ?? 0)
+      );
+    }
+
+    // A score at or below the category bonus means nothing actually matched the
+    // words the user typed — we are showing the right shelf, not the right item.
+    const categoryOnlyScore = (matchedCategoryId ? 3 : 0) + (matchedSubCategoryIds.length ? 3 : 0);
+    const hasKeywordMatch = topScore > categoryOnlyScore + 0.25;
+
+    return {
+      results: [...band, ...rest]
+        .slice(0, limit)
+        .map((entry) => new EquipmentClass(entry.item)),
+      usedFallback: false,
+      matchedCategoryId,
+      /** False when we matched the category but nothing matched the actual words. */
+      hasExactMatch: hasKeywordMatch,
+    };
+  };
+
+  /** Demand radar: keep every query, especially the ones that found nothing. */
+  public recordSearch = async (payload: {
+    query: string;
+    userId?: string;
+    filters: ParsedSearchFilters | null;
+    matchedCategoryId?: string;
+    resultCount: number;
+    usedFallback: boolean;
+  }) => {
+    try {
+      await this.searchQueryModel.create({
+        query: payload.query,
+        userId:
+          payload.userId && isValidObjectId(payload.userId)
+            ? new Types.ObjectId(payload.userId)
+            : undefined,
+        parsedCategory: payload.filters?.category ?? undefined,
+        matchedCategoryId: payload.matchedCategoryId
+          ? new Types.ObjectId(payload.matchedCategoryId)
+          : undefined,
+        keywords: payload.filters?.keywords ?? [],
+        priceMin: payload.filters?.priceMin ?? undefined,
+        priceMax: payload.filters?.priceMax ?? undefined,
+        resultCount: payload.resultCount,
+        usedFallback: payload.usedFallback,
+      });
+    } catch (err: any) {
+      // Analytics must never break a search.
+      console.error("[search] could not record query:", err?.message ?? err);
+    }
+  };
+
+  /** Candidate pool for the kit builder, already filtered to what is free. */
+  public getKitCandidates = async (from: Date, to: Date, limit = 120) => {
+    const items = await this.equipmentModel
+      .find({ isActive: true })
+      .populate([...CategoryPopulate, ...SubCategoryPopulate])
       .limit(limit)
       .lean();
 
-    return { results: data.map((item) => new EquipmentClass(item)), usedFallback: false };
+    const stock = await availabilityService.getAvailableQuantities(
+      items.map((item: any) => ({
+        equipmentId: String(item._id),
+        from,
+        to,
+      }))
+    );
+
+    return items
+      .map((item: any) => ({
+        raw: item,
+        id: String(item._id),
+        name: item.name,
+        category: item.categoryId?.categoryName ?? "",
+        subCategory: item.subCategoryId?.subCategoryName ?? "",
+        pricePerDay: item.prices?.dailyRent ?? 0,
+        available: stock.get(String(item._id))?.available ?? 0,
+        tags: Array.isArray(item.tags) ? item.tags : [],
+      }))
+      .filter((candidate) => candidate.available > 0);
+  };
+
+  /** Owner console: everything this user has listed, with live utilisation. */
+  public getEquipmentsByOwner = async (ownerId: string) => {
+    if (!isValidObjectId(ownerId)) {
+      throw new HttpExceptionError(400, "Invalid owner Id");
+    }
+    const items = await this.equipmentModel
+      .find({ userId: new Types.ObjectId(ownerId) })
+      .populate([...CategoryPopulate, ...SubCategoryPopulate])
+      .lean();
+
+    const now = new Date();
+    const horizon = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+
+    return Promise.all(
+      items.map(async (item: any) => {
+        const window = await availabilityService.getAvailabilityWindow(
+          String(item._id),
+          now,
+          horizon
+        );
+        return {
+          ...new EquipmentClass(item),
+          totalQuantity: item.totalQuantity ?? 1,
+          isActive: item.isActive,
+          committedDays: Object.keys(window.usageByDay).length,
+          fullyBookedDays: window.fullyBookedDays.length,
+        };
+      })
+    );
   };
 
   public isEquipmentExists = async (filters: Record<string, any>) => {
@@ -271,13 +536,18 @@ class EquipmentService {
 
     const { categoryIds, subCategoryIds } = await this.getUserInterestCategories({ likedIds, viewedIds, bookedEquipmentIds });
 
+    // Previously booked items used to be excluded from the candidate pool, which
+    // is backwards for rentals: re-renting what you rented last time is the most
+    // likely next action, not the least. They are eligible now, and the interest
+    // profile already tells the model which ones they are so it can frame them
+    // as a repeat rather than a discovery.
     const [sameSubCategory, sameCategory] = await Promise.all([
       this.equipmentModel
-        .find({ subCategoryId: { $in: subCategoryIds }, _id: { $nin: bookedEquipmentIds } })
+        .find({ subCategoryId: { $in: subCategoryIds }, isActive: true })
         .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
         .limit(30).lean().exec(),
       this.equipmentModel
-        .find({ categoryId: { $in: categoryIds }, subCategoryId: { $nin: subCategoryIds }, _id: { $nin: bookedEquipmentIds } })
+        .find({ categoryId: { $in: categoryIds }, subCategoryId: { $nin: subCategoryIds }, isActive: true })
         .populate([...userPopulateQuery, ...CategoryPopulate, ...SubCategoryPopulate])
         .limit(20).lean().exec(),
     ]);

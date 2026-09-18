@@ -2,6 +2,7 @@ import { IRequest } from "@interfaces/request.interface";
 import { Response, NextFunction } from "express";
 import { equipmentService } from "@src/services/equipment.service";
 import { GeminiService } from "@src/services/gemini.service";
+import { kitService } from "@src/services/kit.service";
 import HttpExceptionError from "@src/exception/httpexception";
 
 export class AIController {
@@ -65,10 +66,41 @@ export class AIController {
   ) => {
     try {
       const { query } = req.body;
-      const parsedFilters = await this.geminiService.parseNaturalSearchQuery(query);
-      const { results, usedFallback } =
+
+      // The parser is given the real category tree. Without it the model
+      // invented names ("Event Equipment", "Fitness Equipment") that matched
+      // nothing, the category filter was silently dropped, and unranked keyword
+      // matches surfaced a DSLR for a tent query.
+      const taxonomy = await this.equipmentService.getTaxonomy();
+      const parsedFilters = await this.geminiService.parseNaturalSearchQuery(
+        query,
+        taxonomy
+      );
+      const { results, usedFallback, matchedCategoryId, hasExactMatch } =
         await this.equipmentService.naturalSearchEquipments(parsedFilters, query);
-      res.status(200).json({ data: { results, parsedFilters, usedFallback } });
+
+      // Demand signal, including the searches that found nothing.
+      void this.equipmentService.recordSearch({
+        query,
+        userId: req.user?.userId,
+        filters: parsedFilters,
+        matchedCategoryId,
+        resultCount: results.length,
+        usedFallback,
+      });
+
+      res
+        .status(200)
+        .json({ data: { results, parsedFilters, usedFallback, hasExactMatch } });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  public buildKit = async (req: IRequest, res: Response, next: NextFunction) => {
+    try {
+      const data = await kitService.buildKit(req.body);
+      res.status(200).json({ data, message: "Assembled kit" });
     } catch (err) {
       next(err);
     }
